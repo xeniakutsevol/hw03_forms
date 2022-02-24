@@ -1,9 +1,7 @@
 from django.core.paginator import Paginator
-
 from django.utils.text import Truncator
-
 from django.shortcuts import get_object_or_404, render, redirect
-
+from django.contrib.auth.decorators import login_required
 from .models import Group, Post, User
 from .forms import PostForm
 
@@ -12,9 +10,7 @@ POSTS_PER_PAGE = 10
 NUM_CHARS = 30
 
 
-# Главная страница
 def index(request):
-    title = "Yatube — главная страница"
     template = "posts/index.html"
     posts = Post.objects.all()
     paginator = Paginator(posts, POSTS_PER_PAGE)
@@ -22,23 +18,19 @@ def index(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
-        "title": title,
         "page_obj": page_obj,
     }
     return render(request, template, context)
 
 
-# Страница сообщества
 def group_posts(request, slug):
     template = "posts/group_list.html"
     group = get_object_or_404(Group, slug=slug)
-    title = f"Записи сообщества {group.title}"
     posts = group.posts.all()
     paginator = Paginator(posts, POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     context = {
-        "title": title,
         "group": group,
         "page_obj": page_obj,
     }
@@ -53,10 +45,8 @@ def profile(request, username):
     paginator = Paginator(author_posts, POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    title = f"Профайл пользователя {author}"
 
     context = {
-        "title": title,
         "page_obj": page_obj,
         "author": author,
         "author_posts_count": author_posts_count,
@@ -78,17 +68,16 @@ def post_detail(request, post_id):
     return render(request, template, context)
 
 
+@login_required
 def post_create(request):
     title = 'Создать новую запись'
     template = 'posts/create_post.html'
-    if request.method == 'POST':
-        form = PostForm(request.POST)
-        if form.is_valid():
-            post = form.save(commit=False)
-            post.author = request.user
-            form.save()
-            return redirect('posts:profile', username=request.user)
-    form = PostForm()
+    form = PostForm(request.POST or None)
+    if form.is_valid():
+        post = form.save(commit=False)
+        post.author = request.user
+        form.save()
+        return redirect('posts:profile', username=request.user)
     context = {
         'form': form,
         'title': title,
@@ -96,25 +85,23 @@ def post_create(request):
     return render(request, template, context)
 
 
+@login_required
 def post_edit(request, post_id):
     title = 'Редактировать запись'
     template = 'posts/create_post.html'
     post = get_object_or_404(Post, id=post_id)
-    is_edit = True
 
-    if request.method == 'POST':
-        form = PostForm(request.POST, instance=post)
-        if form.is_valid():
-            post = form.save(commit=False)
-            post.author = request.user
-            form.save()
-            return redirect('posts:post_detail', post_id)
+    form = PostForm(request.POST or None, instance=post)
+    if form.is_valid():
+        post = form.save(commit=False)
+        post.author = request.user
+        form.save()
+        return redirect('posts:post_detail', post_id)
     if request.user != post.author:
         return redirect('posts:post_detail', post_id)
-    form = PostForm(instance=post)
     context = {
         'form': form,
         'title': title,
-        'is_edit': is_edit
+        'is_edit': True
     }
     return render(request, template, context)
